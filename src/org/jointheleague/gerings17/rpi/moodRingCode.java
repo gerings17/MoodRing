@@ -2,18 +2,33 @@ package org.jointheleague.gerings17.rpi;
 
 import java.io.IOException;
 import java.text.DecimalFormat;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 import com.pi4j.io.i2c.I2CBus;
 import com.pi4j.io.i2c.I2CDevice;
 import com.pi4j.io.i2c.I2CFactory;
 
-public class moodRingCode {
+public class MoodRingCode {
 
 	private I2CBus _i2cbus;
 	private I2CDevice _temperatureSensor;
-
+	private ScheduledThreadPoolExecutor _scheduledThreadPoolExecutor;
+	private Object _handle;
 	private float _temperatureRef = Float.MIN_VALUE;
+	
+	//http://www.programcreek.com/java-api-examples/index.php?source_dir=iot-server-appliances-master/WSO2Agents/wso2agents-mgt/org.wso2.carbon.device.mgt.iot.agent.kura.firealarm/org.wso2.carbon.device.mgt.iot.agent.kura.firealarm.real/src/main/java/org/wso2/carbon/device/mgt/iot/agent/kura/firealarm/impl/real/operation/AgentOperationManagerImpl.java
 
+	public static void main(String[] args) throws InterruptedException{
+		MoodRingCode mrc = new MoodRingCode();
+		mrc.init();
+		float temp = mrc.get_temperatureRef();
+		for(int i=0; i<20; i++){
+			System.out.println(temp * 1e45);
+			Thread.sleep(1000);
+		}
+	}
+	
 	private Runnable temperatureReader = new Runnable() {
 		@Override
 		public void run() {
@@ -36,9 +51,12 @@ public class moodRingCode {
 		try {
 			_i2cbus = I2CFactory.getInstance(I2CBus.BUS_1);
 			_temperatureSensor = _i2cbus.getDevice(0x40);
+//			_scheduledThreadPoolExecutor = new ScheduledThreadPoolExecutor(1);
+//			_handle = _scheduledThreadPoolExecutor.scheduleAtFixedRate(temperatureReader, 0, 100, TimeUnit.MILLISECONDS);
 
 			// monitor temperature changes
 			// every change of more than 0.1C will notify SensorChangedListeners
+			
 		} catch (IOException e) {
 
 		}
