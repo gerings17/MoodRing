@@ -10,88 +10,39 @@ import com.pi4j.io.i2c.I2CDevice;
 import com.pi4j.io.i2c.I2CFactory;
 
 public class MoodRingCode {
-
-	private I2CBus _i2cbus;
-	private I2CDevice _temperatureSensor;
-	private ScheduledThreadPoolExecutor _scheduledThreadPoolExecutor;
-	private Object _handle;
-	private float _temperatureRef = Float.MIN_VALUE;
 	
-	//http://www.programcreek.com/java-api-examples/index.php?source_dir=iot-server-appliances-master/WSO2Agents/wso2agents-mgt/org.wso2.carbon.device.mgt.iot.agent.kura.firealarm/org.wso2.carbon.device.mgt.iot.agent.kura.firealarm.real/src/main/java/org/wso2/carbon/device/mgt/iot/agent/kura/firealarm/impl/real/operation/AgentOperationManagerImpl.java
+	//https://github.com/gerings17/Adafruit_Python_TMP/blob/master/Adafruit_TMP/TMP006.py
 
-	public static void main(String[] args) throws InterruptedException{
-		MoodRingCode mrc = new MoodRingCode();
-		mrc.init();
-		float temp = mrc.get_temperatureRef();
-		for(int i=0; i<20; i++){
-			System.out.println(temp * 1e45);
-			Thread.sleep(1000);
-		}
-	}
-	
-	private Runnable temperatureReader = new Runnable() {
-		@Override
-		public void run() {
-			try {
-				float newTemperature = readTemperature();
-				if (Math.abs(_temperatureRef - newTemperature) > .1f) {
-					_temperatureRef = newTemperature;
-				}
-			} catch (IOException e) {
+	// Coefficient values, found from this whitepaper:
+	// http://www.ti.com/lit/ug/sbou107/sbou107.pdf
+	final static float TMP006_B0 = -0.0000294f;
+	final static float TMP006_B1 = -0.00000057f;
+	final static float TMP006_B2 = 0.00000000463f;
+	final static float TMP006_C2 = 13.4f;
+	final static float TMP006_TREF = 298.15f;
+	final static float TMP006_A2 = -0.00001678f;
+	final static float TMP006_A1 = 0.00175f;
+	final static float TMP006_S0 = 6.4f; // * 10^-14
 
-			}
-		}
-	};
+	// Default device I2C address.
+	final static byte TMP006_I2CADDR=(byte) 0x40;
 
-	public float get_temperatureRef() {
-		return _temperatureRef;
-	}
+	// Register addresses.
+	final static byte TMP006_CONFIG = (byte) 0x02;
+	final static byte TMP006_MANID = (byte) 0xFE;
+	final static byte TMP006_DEVID = (byte) 0xFF;
+	final static byte TMP006_VOBJ = (byte) 0x00;
+	final static byte TMP006_TAMB = (byte) 0x01;
 
-	public void init() {
-		try {
-			_i2cbus = I2CFactory.getInstance(I2CBus.BUS_1);
-			_temperatureSensor = _i2cbus.getDevice(0x40);
-//			_scheduledThreadPoolExecutor = new ScheduledThreadPoolExecutor(1);
-//			_handle = _scheduledThreadPoolExecutor.scheduleAtFixedRate(temperatureReader, 0, 100, TimeUnit.MILLISECONDS);
-
-			// monitor temperature changes
-			// every change of more than 0.1C will notify SensorChangedListeners
-			
-		} catch (IOException e) {
-
-		}
-	}
-
-	private synchronized float readTemperature() throws IOException {
-		float temperature;
-		// Set START (D0) and TEMP (D4) in CONFIG (register 0x03) to begin a
-		// new conversion, i.e., write CONFIG with 0x11
-		_temperatureSensor.write(0x03, (byte) 0x11);
-
-		// Poll RDY (D0) in STATUS (register 0) until it is low (=0)
-		int status = -1;
-		while ((status & 0x01) != 0) {
-			status = _temperatureSensor.read(0x00);
-		}
-
-		// Read the upper and lower bytes of the temperature value from
-		// DATAh and DATAl (registers 0x01 and 0x02), respectively
-		byte[] buffer = new byte[3];
-		_temperatureSensor.read(buffer, 0, 3);
-
-		int dataH = buffer[1] & 0xff;
-		int dataL = buffer[2] & 0xff;
-
-		// s_logger.info("I2C: [{}, {}]", new Object[] {dataH, dataL} );
-
-		temperature = (dataH * 256 + dataL) >> 2;
-		temperature = (temperature / 32f) - 50f;
-
-		// s_logger.info("Temperature: {}", temperature);
-
-		// truncate to 2 decimals
-		DecimalFormat twoDForm = new DecimalFormat("#.##");
-		return Float.valueOf(twoDForm.format(temperature));
-	}
+	// Config register values.
+	final static short TMP006_CFG_RESET = (short) 0x8000;
+	final static short TMP006_CFG_MODEON = (short) 0x7000;
+	final static short CFG_1SAMPLE = (short) 0x0000;
+	final static short CFG_2SAMPLE = (short) 0x0200;
+	final static short CFG_4SAMPLE = (short) 0x0400;
+	final static short CFG_8SAMPLE = (short) 0x0600;
+	final static short CFG_16SAMPLE = (short) 0x0800;
+	final static short TMP006_CFG_DRDYEN = (short) 0x0100; 
+	final static short TMP006_CFG_DRDY=(short)0x0080;
 
 }
