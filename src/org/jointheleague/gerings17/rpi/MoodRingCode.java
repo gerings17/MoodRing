@@ -1,8 +1,6 @@
 package org.jointheleague.gerings17.rpi;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 
 import com.pi4j.io.i2c.I2CBus;
 import com.pi4j.io.i2c.I2CDevice;
