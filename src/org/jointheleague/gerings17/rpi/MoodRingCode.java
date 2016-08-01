@@ -10,18 +10,11 @@ import static java.lang.Math.pow;
 
 public class MoodRingCode implements Runnable {
 
-    //@formatter:off
     // Default device I2C address.
-    final static private byte TMP006_I2CADDR   = (byte) 0x40;
+    final static private byte TMP006_I2CADDR = (byte) 0x40;
 
-
-    // Config register values.
-    
-    
-    //@formatter:on
-    
     private enum Register {
-        
+
         //@formatter:off
         V_OBJ(                  0x00),
         T_DIE(                  0x01),
@@ -29,42 +22,41 @@ public class MoodRingCode implements Runnable {
         MANUFACTURER_ID(        0xFE),
         DEVICE_ID(              0xFF);
         //@formatter:on
-        
-        private Register(int code) {
-            this.code = (byte) code;
-        }
-        
-        private final byte code;
 
-        public byte getCode() {
-            return code;
+        private final byte address;
+
+        private Register(int address) {
+            this.address = (byte) address;
+        }
+
+        public byte getAddress() {
+            return address;
         }
     }
 
     private enum Configuration {
         //@formatter:off
         RESET(                  0x8000),
-        MODEON(                 0x7000),
-        SAMPLE_1(               0x0000), 
-        SAMPLE_2(               0x0200), 
-        SAMPLE_4(               0x0400), 
-        SAMPLE_8(               0x0600), 
-        SAMPLE_16(              0x0800);
+        MODEON_SAMPLE_1(        0x7000), 
+        MODEON_SAMPLE_2(        0x7200), 
+        MODEON_SAMPLE_4(        0x7400), 
+        MODEON_SAMPLE_8(        0x7600), 
+        MODEON_SAMPLE_16(       0x7800);
         //@formatter:on
 
+        private final short code;
+        
         private Configuration(int code) {
-            this.code = code;
+            this.code = (short) code;
         }
 
-        private final int code;
-
-        public int getCode() {
+        public short getCode() {
             return code;
         }
     }
 
-    // 0 degrees C == 273.15 degrees K
-    final static private double KELVIN_OFFSET = 273.15; 
+    // 0 degrees Celsius == 273.15 degrees Kelvin
+    final static private double CELSIUS_OFFSET = 273.15;
     I2CBus bus;
     I2CDevice device;
     private volatile boolean running = true;
@@ -77,8 +69,8 @@ public class MoodRingCode implements Runnable {
         MoodRingCode ring = new MoodRingCode();
 
         new Thread(ring).start();
-        // Thread.sleep(20000);
-        // ring.setRunning(false);
+         Thread.sleep(60000);
+         ring.setRunning(false);
 
     }
 
@@ -87,7 +79,7 @@ public class MoodRingCode implements Runnable {
         try {
             while (running) {
                 double temp = readTemp();
-                System.out.format("Temp. = %.2f \n", temp);
+                System.out.format("Temp. = %.4f \n", temp);
                 Thread.sleep(1000);
             }
         } catch (InterruptedException e) {
@@ -120,19 +112,19 @@ public class MoodRingCode implements Runnable {
             System.out.println("Connected to the device OK!");
 
             byte[] buffer = null;
-            
+
             buffer = writeShort((short) Configuration.RESET.getCode());
-            device.write(Register.CONFIG.getCode(), buffer, 0, 2);
+            device.write(Register.CONFIG.getAddress(), buffer, 0, 2);
             System.out.println("Device reset");
 
-            device.read(Register.MANUFACTURER_ID.getCode(), buffer, 0, 2);
-            int manId = readUnsignedShort(buffer);
-            device.read(Register.DEVICE_ID.getCode(), buffer, 0, 2);
+            device.read(Register.MANUFACTURER_ID.getAddress(), buffer, 0, 2);
+            int manufacturerId = readUnsignedShort(buffer);
+            device.read(Register.DEVICE_ID.getAddress(), buffer, 0, 2);
             int deviceId = readUnsignedShort(buffer);
-            System.out.format("Manufacturer = %04X\nDevice       = %04X\n", manId, deviceId);
+            System.out.format("Manufacturer = %04X\nDevice       = %04X\n", manufacturerId, deviceId);
 
-            buffer = writeShort((short) (Configuration.MODEON.getCode() | Configuration.SAMPLE_4.getCode()));
-            device.write(Register.CONFIG.getCode(), buffer, 0, 2);
+            buffer = writeShort(Configuration.MODEON_SAMPLE_4.getCode());
+            device.write(Register.CONFIG.getAddress(), buffer, 0, 2);
             System.out.println("Entered continuous conversion mode.");
 
             return true;
@@ -148,7 +140,7 @@ public class MoodRingCode implements Runnable {
         // http://www.ti.com/lit/ug/sbou107/sbou107.pdf, Section 5.1
         double a1 = 1.75E-3;
         double a2 = -1.678E-5;
-        double tRef = KELVIN_OFFSET + 25.0;
+        double tRef = CELSIUS_OFFSET + 25.0;
         double s0 = 6.4E-14; // (Should be calibrated)
         double b0 = -2.94E-5;
         double b1 = -5.7E-7;
@@ -161,11 +153,11 @@ public class MoodRingCode implements Runnable {
         byte[] buffer = new byte[2];
 
         try {
-            device.read(Register.V_OBJ.getCode(), buffer, 0, 2);
+            device.read(Register.V_OBJ.getAddress(), buffer, 0, 2);
             double vObj = readSignedShort(buffer) * voltUnit;
 
-            device.read(Register.T_DIE.getCode(), buffer, 0, 2);
-            double tDie = (readSignedShort(buffer) >> 2) * tempUnit + KELVIN_OFFSET;
+            device.read(Register.T_DIE.getAddress(), buffer, 0, 2);
+            double tDie = (readSignedShort(buffer) >> 2) * tempUnit + CELSIUS_OFFSET;
 
             double t = tDie - tRef;
             double s = s0 * (1 + t * (a1 + t * a2));
@@ -173,10 +165,11 @@ public class MoodRingCode implements Runnable {
             double d = vObj - vOffset;
             double f_vObj = d * (1 + d * c2);
             double tObj = pow(pow(tDie, 4.0) + f_vObj / s, 0.25);
-            return tObj - KELVIN_OFFSET;
+            // Convert to Celsius
+            return tObj - CELSIUS_OFFSET;
 
         } catch (IOException e) {
-            return -KELVIN_OFFSET; // Absolute zero!
+            return -CELSIUS_OFFSET; // Absolute zero!
         }
 
     }
