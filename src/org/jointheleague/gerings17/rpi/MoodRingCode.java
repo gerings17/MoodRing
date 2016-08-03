@@ -57,8 +57,9 @@ public class MoodRingCode implements Runnable {
 
     // 0 degrees Celsius == 273.15 degrees Kelvin
     final static private double CELSIUS_OFFSET = 273.15;
-    I2CBus bus;
-    I2CDevice device;
+    private I2CBus bus;
+    private I2CDevice device;
+
     private volatile boolean running = true;
 
     public void setRunning(boolean running) {
